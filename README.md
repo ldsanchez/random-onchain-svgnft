@@ -1,6 +1,6 @@
 # ⛓️ Random On-chain SVG NFT
 
-> Create a simple On-Chain SVG NFT! 🚀
+> Create a Random On-Chain SVG NFT! 🚀
 
 ![image](https://user-images.githubusercontent.com/5996795/165186611-b66f6c60-5e8b-41df-8900-d7863d59c611.png)
 
@@ -8,7 +8,7 @@
 
 Prerequisites: [Node (v16 LTS)](https://nodejs.org/en/download/) plus [Yarn](https://classic.yarnpkg.com/en/docs/install/) and [Git](https://git-scm.com/downloads)
 
-> clone/fork ⛓️ Simple On-chain SVG NFT
+> clone/fork ⛓️ Random On-chain SVG NFT
 
 ```bash
 git clone https://github.com/ldsanchez/random-onchain-svgnft.git
@@ -21,7 +21,7 @@ cd random-onchain-svgnft
 yarn install
 ```
 
-🔏 Edit your smart contract `RandomSVGNFT.sol` in `contracts`
+🔏 Edit your smart contract `RandomSVG.sol` in `contracts`
 
 💼 Edit your deployment scripts in `deploy`
 
