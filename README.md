@@ -11,13 +11,13 @@ Prerequisites: [Node (v16 LTS)](https://nodejs.org/en/download/) plus [Yarn](htt
 > clone/fork ⛓️ Simple On-chain SVG NFT
 
 ```bash
-git clone https://github.com/ldsanchez/onchain-svgnft.git
+git clone https://github.com/ldsanchez/random-onchain-svgnft.git
 ```
 
 > install:
 
 ```bash
-cd onchain-svgnft
+cd random-onchain-svgnft
 yarn install
 ```
 
