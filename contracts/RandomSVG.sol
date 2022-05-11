@@ -4,19 +4,42 @@ pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "base64-sol/base64.sol";
+import "./SVG.sol";
+import "./Utils.sol";
+
+error Not__Owner();
+error Not__EnoughETH();
+error Token__AlreadySet();
+error Token__NotMinted();
+error Wainting__VRF();
 
 contract RandomSVG is ERC721URIStorage, VRFConsumerBase {
     address payable public owner;
     bytes32 internal keyHash;
     uint256 internal fee;
     uint256 public tokenCounter;
+    int256 public threshold;
+
+    struct BoringAvatar {
+        string hasMask;
+        string maskColor;
+        string faceColor;
+    }
+    BoringAvatar boringAvatar;
 
     // SVG parameters
-    uint256 public size;
+    uint256 immutable size;
     string[] public colors;
+    string[] public masks;
+    bool public isHappy;
+    string[] public happySmiles;
+    string[] public sadSmiles;
     uint256 public price;
+
+    AggregatorV3Interface internal immutable i_priceFeed;
 
     mapping(bytes32 => address) public requestIdToSender;
     mapping(bytes32 => uint256) public requestIdToTokenId;
@@ -30,6 +53,8 @@ contract RandomSVG is ERC721URIStorage, VRFConsumerBase {
     event CreatedRandomSVG(uint256 indexed tokenId, string tokenURI);
 
     constructor(
+        int256 _threshold,
+        address _priceFeedAddress,
         address _VRFCoordinator,
         address _LinkToken,
         bytes32 _keyHash,
@@ -38,16 +63,23 @@ contract RandomSVG is ERC721URIStorage, VRFConsumerBase {
         VRFConsumerBase(_VRFCoordinator, _LinkToken)
         ERC721("Random SVG NFT", "rsvgNFT")
     {
+        threshold = _threshold;
+        i_priceFeed = AggregatorV3Interface(_priceFeedAddress);
         fee = _fee;
         keyHash = _keyHash;
         tokenCounter = 0;
         price = 1000000000000000; // 0.001 ETH / MATIC / ETC
-        size = 80;
+        size = 100;
+        masks = ["mask__beam", "none"];
         colors = ["#FFAD08", "#EDD75A", "#73B06F", "#0C8F8F", "#405059"];
+        happySmiles = ["M15 21c2 1 4 1 6 0", "M15 19c2 1 4 1 6 0"];
+        sadSmiles = ["M15 21c2 -1 4 -1 6 0", "M15 19c2 -2 4 -1 5 1"];
     }
 
     function create() public payable returns (bytes32 requestId) {
-        require(msg.value >= price, "Need to send more ETH");
+        if (msg.value < price) {
+            revert Not__EnoughETH();
+        }
         requestId = requestRandomness(keyHash, fee);
         requestIdToSender[requestId] = msg.sender;
         uint256 tokenId = tokenCounter;
@@ -57,7 +89,9 @@ contract RandomSVG is ERC721URIStorage, VRFConsumerBase {
     }
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "Not Owner");
+        if (msg.sender != owner) {
+            revert Not__Owner();
+        }
         _;
     }
 
@@ -74,32 +108,6 @@ contract RandomSVG is ERC721URIStorage, VRFConsumerBase {
         _safeMint(nftOwner, tokenId);
         tokenIdToRandomNumber[tokenId] = randomNumber;
         emit CreatedUnfinishedRandomSVG(tokenId, randomNumber);
-    }
-
-    function generateBackground(uint256 _randomNumber)
-        public
-        view
-        returns (string memory backgroundSVG)
-    {
-        uint256 newRNG = uint256(keccak256(abi.encode(_randomNumber, 1)));
-        string memory color = colors[newRNG % colors.length];
-        backgroundSVG = "<g mask='url(#mask__beam)'><rect width='36' height='36' fill='";
-        backgroundSVG = string.concat(backgroundSVG, color, "'></rect>");
-    }
-
-    function generateForeground(uint256 _randomNumber)
-        public
-        view
-        returns (string memory foregroundSVG)
-    {
-        uint256 newRNG = uint256(keccak256(abi.encode(_randomNumber, 2)));
-        string memory color = colors[newRNG % colors.length];
-        foregroundSVG = "<rect x='0' y='0' width='36' height='36' transform='translate(9 -5) rotate(219 18 18) scale(1)' fill='";
-        foregroundSVG = string.concat(
-            foregroundSVG,
-            color,
-            "' rx='6'></rect><g transform='translate(4.5 -4) rotate(9 18 18)'><path d='M15 19c2 1 4 1 6 0' stroke='#FFFFFF' fill='none' stroke-linecap='round'></path><rect x='10' y='14' width='1.5' height='2' rx='1' stroke='none' fill='#FFFFFF'></rect><rect x='24' y='14' width='1.5' height='2' rx='1' stroke='none' fill='#FFFFFF'></rect></g></g>"
-        );
     }
 
     function svgToImageURI(string memory _svg)
@@ -139,50 +147,155 @@ contract RandomSVG is ERC721URIStorage, VRFConsumerBase {
             );
     }
 
+    function expand(uint256 _randomNumber, uint256 n)
+        public
+        pure
+        returns (uint256[] memory expandedValues)
+    {
+        expandedValues = new uint256[](n);
+        for (uint256 i = 0; i < n; i++) {
+            expandedValues[i] = uint256(
+                keccak256(abi.encode(_randomNumber, i))
+            );
+        }
+        return expandedValues;
+    }
+
     function generateSVG(uint256 _randomNumber)
         public
-        view
         returns (string memory finalSVG)
     {
-        uint256 hasMask = _randomNumber % 2;
+        (, int256 ethPrice, , , ) = i_priceFeed.latestRoundData();
+        string memory smile;
+        uint256[] memory randomValues = expand(_randomNumber, 3);
+
+        if (ethPrice > threshold) {
+            smile = happySmiles[randomValues[1] % happySmiles.length];
+        } else {
+            smile = sadSmiles[randomValues[1] % sadSmiles.length];
+        }
+
+        boringAvatar.hasMask = masks[randomValues[1] % 2];
+        boringAvatar.maskColor = colors[randomValues[2] % colors.length];
+        boringAvatar.faceColor = colors[randomValues[0] % colors.length];
+
         finalSVG = string.concat(
-            "<svg viewBox='0 0 36 36' xmlns='http://www.w3.org/2000/svg' width='",
+            "<svg viewBox='0 0 36 36' fill='none' role='img' xmlns='http://www.w3.org/2000/svg' width='",
             Strings.toString(size),
             "' height='",
             Strings.toString(size),
-            "'>"
+            "'>",
+            svg.mask(
+                string.concat(
+                    svg.prop("id", boringAvatar.hasMask), // mask__beam
+                    svg.prop("maskUnits", "userSpaceOnUse"),
+                    svg.prop("x", "0"),
+                    svg.prop("y", "0"),
+                    svg.prop("width", "36"),
+                    svg.prop("height", "36")
+                ),
+                svg.rect(
+                    string.concat(
+                        svg.prop("width", "36"),
+                        svg.prop("height", "36"),
+                        svg.prop("rx", "72"),
+                        svg.prop("fill", "#FFFFFF")
+                    ),
+                    utils.NULL
+                )
+            ),
+            svg.g(
+                svg.prop("mask", "url(#mask__beam)"),
+                string.concat(
+                    svg.rect(
+                        string.concat(
+                            svg.prop("width", "36"),
+                            svg.prop("height", "36"),
+                            svg.prop("fill", boringAvatar.maskColor) // "#73b06f"
+                        ),
+                        utils.NULL
+                    ),
+                    svg.rect(
+                        string.concat(
+                            svg.prop("x", "0"),
+                            svg.prop("y", "0"),
+                            svg.prop("width", "36"),
+                            svg.prop("height", "36"),
+                            svg.prop(
+                                "transform",
+                                "translate(9 -5) rotate(219 18 18) scale(1)"
+                            ),
+                            svg.prop("fill", boringAvatar.faceColor), // "#405059"
+                            svg.prop("rx", "6")
+                        ),
+                        utils.NULL
+                    ),
+                    svg.g(
+                        svg.prop(
+                            "transform",
+                            "translate(4.5 -4) rotate(9 18 18)"
+                        ),
+                        string.concat(
+                            svg.path(
+                                string.concat(
+                                    svg.prop("d", smile), // "M15 19c2 1 4 1 6 0"
+                                    svg.prop("stroke", "#FFFFFF"),
+                                    svg.prop("fill", "none"),
+                                    svg.prop("stroke-linecap", "round")
+                                ),
+                                utils.NULL
+                            ),
+                            svg.rect(
+                                string.concat(
+                                    svg.prop("x", "10"),
+                                    svg.prop("y", "14"),
+                                    svg.prop("width", "1.5"),
+                                    svg.prop("height", "2"),
+                                    svg.prop("rx", "1"),
+                                    svg.prop("stroke", "none"),
+                                    svg.prop("fill", "#FFFFFF")
+                                ),
+                                utils.NULL
+                            ),
+                            svg.rect(
+                                string.concat(
+                                    svg.prop("x", "24"),
+                                    svg.prop("y", "14"),
+                                    svg.prop("width", "1.5"),
+                                    svg.prop("height", "2"),
+                                    svg.prop("rx", "1"),
+                                    svg.prop("stroke", "none"),
+                                    svg.prop("fill", "#FFFFFF")
+                                ),
+                                utils.NULL
+                            )
+                        )
+                    )
+                )
+            ),
+            "</svg>"
         );
-        if (hasMask == 1) {
-            finalSVG = string.concat(
-                finalSVG,
-                "<mask id='mask__beam' maskUnits='userSpaceOnUse' x='0' y='0' width='36' height='36'><rect width='36' height='36' rx='72' fill='#FFFFFF'></rect></mask>"
-            );
-        }
-        string memory backgroundSVG = generateBackground(_randomNumber);
-        finalSVG = string.concat(finalSVG, backgroundSVG);
-        string memory foregroundSVG = generateForeground(_randomNumber);
-        finalSVG = string.concat(finalSVG, foregroundSVG, "</svg>");
     }
 
     function finishMint(uint256 _tokenId) public {
-        require(
-            bytes(tokenURI(_tokenId)).length <= 0,
-            "tokenURI is already all set!"
-        );
-        require(tokenCounter > _tokenId, "TokenId has not been minted yet!");
-        require(
-            tokenIdToRandomNumber[_tokenId] > 0,
-            "Need to wait for Chainlink VRF"
-        );
+        if (bytes(tokenURI(_tokenId)).length > 0) {
+            revert Token__AlreadySet();
+        }
+        if (tokenCounter < _tokenId) {
+            revert Token__NotMinted();
+        }
+        if (tokenIdToRandomNumber[_tokenId] == 0) {
+            revert Wainting__VRF();
+        }
         // generate some random SVG code
         uint256 randomNumber = tokenIdToRandomNumber[_tokenId];
-        string memory svg = generateSVG(randomNumber);
+        string memory generatedSVG = generateSVG(randomNumber);
         // turn that into an image URI
-        string memory imageURI = svgToImageURI(svg);
+        string memory imageURI = svgToImageURI(generatedSVG);
         // use that imageURI to format into a tokenURI
         string memory tokenURI = formatTokenURI(imageURI);
         _setTokenURI(_tokenId, tokenURI);
 
-        emit CreatedRandomSVG(_tokenId, svg);
+        emit CreatedRandomSVG(_tokenId, generatedSVG);
     }
 }

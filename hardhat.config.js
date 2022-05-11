@@ -29,7 +29,9 @@ const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY
 module.exports = {
   defaultNetwork: "hardhat",
   networks: {
-    hardhat: {},
+    hardhat: {
+      // allowUnlimitedContractSize: true
+    },
     rinkeby: {
       url: RINKEBY_RPC_URL,
       accounts: {
@@ -56,7 +58,15 @@ module.exports = {
     apiKey: ETHERSCAN_API_KEY
   },
   solidity: {
-    compilers: [{version: "0.8.13"}, {version: "0.4.24"}, {version: "0.6.6"} ]}
+    compilers: [
+      {version: "0.8.13", 
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200
+          }
+        }
+      }, {version: "0.4.24"}, {version: "0.6.6"} ]}
   ,
   namedAccounts: {
     deployer: {

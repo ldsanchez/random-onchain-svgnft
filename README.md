@@ -1,4 +1,4 @@
-# ⛓️ Random On-chain SVG NFT
+# ⛓️ Random On-chain SVG NFT Creator (Chainlink Hackaton)
 
 > Create a Random On-Chain SVG NFT! 🚀
 
@@ -37,14 +37,12 @@ yarn install
 
 Now you are ready to run the `npx hardhat verify --network rinkeby <CONTRACT_ADDRESS>` command to verify your contracts on etherscan 🛰
 
-# 🚢 Ship it! 🚁
-
-🌐 Open https://testnets.opensea.io/ connect your deployment wallet anc paste your `<CONTRACT_ADDRESS>`
-
 # 📝 To-Do
 
+- Use Hot-Chain-Svg (Done)
 - Migrate to VRF v2
-- Use Hot-Chain-Svg
+- Upload SVG to IPFS
+- Front-End Creator
 
 # Thanks 👏🏻
 

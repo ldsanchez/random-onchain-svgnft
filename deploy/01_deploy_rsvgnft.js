@@ -14,19 +14,26 @@ module.exports = async({
 
   let linkTokenAddress, vrfCoordinatorAddress
 
+  // const highValue = ethers.utils.parseEther("4000")
+
+  threshold =  networkConfig[chainId].threshold;
+
   // local chain
   if (chainId == 31337) {
     let linkToken = await get("LinkToken");
     let VRFCoordinatorMock = await get("VRFCoordinatorMock");
     linkTokenAddress = linkToken.address;
     vrfCoordinatorAddress = VRFCoordinatorMock.address;
+    const EthUsdAggregator = await deployments.get("MockV3Aggregator")
+    ethUsdPriceFeedAddress = EthUsdAggregator.address
   } else {
     linkTokenAddress = networkConfig[chainId]['linkToken']
     vrfCoordinatorAddress = networkConfig[chainId]['vrfCoordinator']
+    ethUsdPriceFeedAddress = networkConfig[chainId].ethUsdPriceFeed
   }
   const keyHash = networkConfig[chainId]['keyHash']
   const fee = networkConfig[chainId]['fee']
-  let args = [vrfCoordinatorAddress, linkTokenAddress, keyHash, fee]
+  let args = [threshold, ethUsdPriceFeedAddress, vrfCoordinatorAddress, linkTokenAddress, keyHash, fee]
   log("----------")
   const RandomSVG = await deploy('RandomSVG', {
     from: deployer,
